@@ -603,16 +603,19 @@ FGCOLOR and return it."
             (push (list beg item-end) fragments)))))
     (nreverse fragments)))
 
-;; (defun laic--comment-block-begin ()
-;;   (let ((begin (comment-beginning))
-;;         (can-move 0))
-;;     (while (and
-;;             (= can-move 0)
-;;             (laic-is-point-in-comment-p))
-;;       (setq begin (comment-beginning))
-;;       (setq can-move (forward-line -1))
-;;       (back-to-indentation))
-;;     begin))
+(defun laic--comment-block-begin ()
+  (save-excursion
+    (let ((begin (comment-beginning))
+         (can-move 0))
+     (while (and
+             (= can-move 0)
+             (laic-is-point-in-comment-p))
+       (setq begin (comment-beginning))
+       (setq can-move (forward-line -1))
+       (back-to-indentation)
+       (when (looking-at comment-start nil)
+         (end-of-line)))
+     begin)))
 
 ;;--------------------------------
 ;; Package setup

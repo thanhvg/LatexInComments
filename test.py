@@ -1,7 +1,8 @@
+#
 # \[
 #  \begin{align*}
 #   \alpha &= ( \beta + \eta ) \\ \gamma &= [ \delta - \nu ] \\
-#   \alpha &= ( \nu + \nabla ) \\ \xi &= [ \omega - \mu ]
+#    \alpha &= ( \nu + \nabla ) \\ \xi &= [ \omega - \mu ]
 # \end{align*}
 # \]
 
