@@ -75,12 +75,24 @@
   :group 'laic
   :type 'file)
 
-(defcustom laic-block-delimiter-pairs (list (list "\\(" "\\)")
-                                            (list "\\[" "\\]")
-                                            (list "\\begin{equation*}" "\\end{equation*}")
-                                            (list "\\begin{equation}" "\\end{equation}")
-                                            (list "\\begin{align}" "\\end{align}")
-                                            (list "\\begin{align*}" "\\end{align*}"))
+;; (defcustom laic-block-delimiter-pairs (list  (list "\\$" "\\$)")
+;;                                        ;;(list "\\$[^ $]" "[^ $]\\$")
+;;                                             (list "\\(" "\\)")
+;;                                             (list "\\[" "\\]")
+;;                                             (list "\\begin{equation*}" "\\end{equation*}")
+;;                                             (list "\\begin{equation}" "\\end{equation}")
+;;                                             (list "\\begin{align}" "\\end{align}")
+;;                                             (list "\\begin{align*}" "\\end{align*}"))
+(defcustom laic-block-delimiter-pairs (list
+                                       (list "$$" "$$")
+                                       (list "$" "$")
+                                       ;; (list "\\(" "\\)")
+                                       ;; (list "\\[" "\\]")
+                                       ;; (list "\\begin{equation*}" "\\end{equation*}")
+                                       ;; (list "\\begin{equation}" "\\end{equation}")
+                                       ;; (list "\\begin{align}" "\\end{align}")
+                                       ;; (list "\\begin{align*}" "\\end{align*}")
+                                       )
   "List of delimiter pairs."
   :group 'laic
   :type 'list)
@@ -138,14 +150,14 @@ Can be used to define custom math operators, etc..."
 (defun laic-convert-color-to-dvipng-arg( color )
   "Convert Emacs COLOR string \"#RRGGBB\" to dvipng argument string."
   (let (rsub gsub bsub rnum gnum bnum)
-       (setq rsub (substring color 1 3)) ;get RR
-       (setq gsub (substring color 3 5)) ;get GG
-       (setq bsub (substring color 5 7)) ;get BB
-       (setq rnum (string-to-number rsub 16)) ;base 16
-       (setq gnum (string-to-number gsub 16)) ;base 16
-       (setq bnum (string-to-number bsub 16)) ;base 16
-       ;; output "rgb r g b" with r,g,b \in [0..1]
-       (format "rgb %f %f %f" (/ rnum 255.0) (/ gnum 255.0) (/ bnum 255.0))))
+    (setq rsub (substring color 1 3)) ;get RR
+    (setq gsub (substring color 3 5)) ;get GG
+    (setq bsub (substring color 5 7)) ;get BB
+    (setq rnum (string-to-number rsub 16)) ;base 16
+    (setq gnum (string-to-number gsub 16)) ;base 16
+    (setq bnum (string-to-number bsub 16)) ;base 16
+    ;; output "rgb r g b" with r,g,b \in [0..1]
+    (format "rgb %f %f %f" (/ rnum 255.0) (/ gnum 255.0) (/ bnum 255.0))))
 
 (defun laic-convert-color-to-html-arg( color )
   "Convert Emacs COLOR string \"#RRGGBB\" to HTML argument string RRGGBB."
@@ -175,18 +187,18 @@ Can be used to define custom math operators, etc..."
         (t ;;else 'gnu/linux, 'darwin, etc...
          ";"))
   "OS-specific commandline separator string, to concatenate commands."
-)
+  )
 
 ;;--------------------------------
 ;; buffer-local vars
 ;;--------------------------------
 
 (defvar-local laic--list-images
-  ()
+    ()
   "Buffer-local list of images to reuse and files to be deleted later.")
 
 (defvar-local laic--list-overlays
-  ()
+    ()
   "Buffer-local list of laic-created overlays.")
 
 ;;--------------------------------
@@ -202,11 +214,11 @@ Can be used to define custom math operators, etc..."
 
   ;; Try to create image
   (let (tmpfilename tmpfilename_tex tmpfilename_dvi tmpfilename_png
-        prefix packages fullcode
-        img
-        ;;start_time
-        ;;current_time
-        )
+                    prefix packages fullcode
+                    img
+                    ;;start_time
+                    ;;current_time
+                    )
 
     ;; PROFILE \[ \alpha = \beta \]
     ;; (setq start_time (float-time))
@@ -428,20 +440,6 @@ FGCOLOR and return it."
           (t
            nil))))
 
-(defun laic-search-forward-block ()
-  "Find matching begin/end latex block forward."
-  (save-excursion
-    (let (begin end)
-      (setq begin (laic-search-forward-block-begin))
-      (when begin
-        (goto-char begin)) ;move point to begin
-      (setq end (laic-search-forward-block-end))
-      (cond ((or (eq begin nil) (eq end nil))
-             ;;(message "laic-search-forward-block() no LaTeX block found!")
-             nil) ;returns nil
-            (t
-             (list begin end) )))))
-
 ;;--------------------------------
 ;; Comment helpers
 ;;--------------------------------
@@ -466,39 +464,6 @@ FGCOLOR and return it."
 ;;--------------------------------
 ;; Region functionality
 ;;--------------------------------
-
-(defun laic-gather-blocks( begin end )
-  "Gather all latex blocks inside BEGIN/END points, return as list of pairs."
-  (save-excursion
-    (let (lb be)
-      (setq lb ()) ;empty
-      (goto-char begin)
-      (setq be (laic-search-forward-block)) ;first block
-      (while (and be (<= (nth 1 be) end)) ;non-empty and be.end < end
-        (push be lb) ;save block
-        (goto-char (nth 1 be)) ;skip block
-        (setq be (laic-search-forward-block))) ;next block
-      (reverse lb) )))
-
-(defun laic-gather-blocks-in-comments( begin end )
-  "Gather all latex blocks inside BEGIN/END points, return as list of pairs."
-  (save-excursion
-    (let (lb be)
-      (setq lb ()) ;empty
-      (goto-char begin)
-      (setq be (laic-search-forward-block)) ;1st block
-      (while (and be (<= (nth 1 be) end)) ;non-empty and be.end < end
-        (let ((b (nth 0 be))
-              (e (nth 1 be)))
-          ;;DEBUG (message "be = %d %d = %s" b e (buffer-substring-no-properties b e))
-          (goto-char b) ;move to block begin
-          ;;(when (comment-only-p b e) ;block is inside comment
-          (when (laic-is-point-in-comment-p) ;block in comment
-            ;;DEBUG (message "COMMENT in %d %d" b e)
-            (push be lb)) ;save block
-          (goto-char e) ;skip to block end
-          (setq be (laic-search-forward-block)))) ;next block
-      (reverse lb))))
 
 (defun laic-create-overlays-from-blocks( listblocks )
   "Create overlays eack block in the LISTBLOCKS."
@@ -608,8 +573,8 @@ FGCOLOR and return it."
 (defun laic-create-overlays-from-comment-inside-or-forward ()
   "Create overlays for all blocks in current comment or next visible one."
   (interactive)
-;;  (message "LAIC took %f seconds"
-;;           (benchmark-elapse ;IMPORTANT (require 'benchmark)
+  ;;  (message "LAIC took %f seconds"
+  ;;           (benchmark-elapse ;IMPORTANT (require 'benchmark)
   (when (not (laic-create-overlays-from-comment-inside))
     (laic-create-overlays-from-comment-forward)))
 
@@ -659,6 +624,53 @@ FGCOLOR and return it."
   "Create overlays for all latex blocks in active region comments."
   (interactive)
   (laic-create-overlays-from-blocks (laic-gather-blocks-in-comments (region-beginning) (region-end))))
+
+
+(defun laic-gather-blocks (start end)
+  "Return a list of (begin end) buffer positions for LaTeX fragments between START and END."
+  (interactive "r")
+  (let ((fragments '())
+        ;; Matches: $$...$$, $...$, \[...\], and \(...\)
+        (latex-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)"))
+    (save-excursion
+      (goto-char start)
+      (while (re-search-forward latex-regex end t)
+        (push (list (match-beginning 0) (match-end 0)) fragments)))
+    (nreverse fragments)))
+
+
+(defun laic-gather-blocks-in-comments (start end)
+  "Return a list of (begin end) positions for LaTeX fragments inside comments between START and END."
+  ;; (interactive "r")
+  (let ((fragments '())
+        ;; Matches: $$...$$, $...$, \[...\], and \(...\)
+        (latex-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)"))
+    (save-excursion
+      (goto-char start)
+      (while (re-search-forward latex-regex end t)
+        (let ((beg (match-beginning 0))
+              (item-end (match-end 0)))
+          ;; (nth 4 (syntax-ppss)) is non-nil if the point is inside a comment
+          (when (laic-is-point-in-comment-p)
+            (push (list beg item-end) fragments)))))
+    (nreverse fragments)))
+
+
+(defun my/get-comment-regions (start end)
+  "Return a list of (begin . end) buffer positions for all comments between START and END."
+  (comment-normalize-vars)
+  (let ((regions '()))
+    (save-excursion
+      (goto-char start)
+      (let (c-start)
+        (while (and (< (point) end)
+                    (setq c-start (comment-search-forward end t)))
+          (let ((c-end (if (comment-forward 1)
+                           (min (point) end)
+                         end)))
+            (push (cons c-start c-end) regions)
+            (goto-char c-end)))))
+    (nreverse regions)))
 
 ;;--------------------------------
 ;; Package setup
