@@ -488,12 +488,18 @@ FGCOLOR and return it."
   "If point is in a latex block in a comment, create overlay and move point to end."
   (interactive)
   (when (laic-is-point-in-comment-p)
-    (let (pt beginpt endpt)
+    (let (pt beginpt endpt blocks block)
       (setq pt (point)) ;get current point
-      (setq beginpt (laic-search-backward-block-begin)) ;find prev begin wrt point
-      (when beginpt ;valid begin
-        (goto-char beginpt) ;move to prev begin
-        (setq endpt (laic-search-forward-block-end)) ;find next end
+      (setq blocks (laic-gather-blocks (point-min) (point-max)))
+      (setq block (seq-find
+                   (lambda (it)
+                     (and
+                      (>= pt (nth 0 it))
+                      (<= pt (nth 1 it))))
+                   blocks)) ;find prev begin wrt point
+      (when block ;valid begin
+        (setq beginpt (nth 0 block)) ;move to prev begin
+        (setq endpt (nth 1 block)) ;find next end
         (goto-char pt)) ;restore point
       ;; Create overlay if valid begin/end block found around point
       (when (and beginpt endpt (< pt endpt)) ;non-nil begin and end + end after current
@@ -529,7 +535,7 @@ FGCOLOR and return it."
   (when (not (laic-create-overlay-from-latex-inside))
     (laic-create-overlay-from-latex-forward)))
 
-(defun laic-create-overlays-from-comment-inside()
+(defun laic-create-overlays-from-comment-inside ()
   "Create overlays for all blocks in current comment, keep point unchanged."
   (interactive)
   (when (laic-is-point-in-comment-p) ;we're inside a comment
@@ -625,10 +631,27 @@ FGCOLOR and return it."
   (interactive)
   (laic-create-overlays-from-blocks (laic-gather-blocks-in-comments (region-beginning) (region-end))))
 
+(defvar laic-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)")
+
+(defun laic--search-forward-block (start end)
+  (save-excursion
+    (goto-char start)
+    (when (re-search-forward laic-regex end t)
+      (list (match-beginning 0) (match-end 0)))))
+
+(defun laic--search-backward-block (start end)
+  (save-excursion
+    (goto-char end)
+    (when (re-search-backward laic-regex start t)
+      (list (match-beginning 0) (match-end 0)))))
+
+
+(defun laic-search-forward-block ()
+  (laic--search-forward-block (point) (point-max)))
 
 (defun laic-gather-blocks (start end)
   "Return a list of (begin end) buffer positions for LaTeX fragments between START and END."
-  (interactive "r")
+  ;; (interactive "r")
   (let ((fragments '())
         ;; Matches: $$...$$, $...$, \[...\], and \(...\)
         (latex-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)"))
@@ -655,22 +678,16 @@ FGCOLOR and return it."
             (push (list beg item-end) fragments)))))
     (nreverse fragments)))
 
-
-(defun my/get-comment-regions (start end)
-  "Return a list of (begin . end) buffer positions for all comments between START and END."
-  (comment-normalize-vars)
-  (let ((regions '()))
-    (save-excursion
-      (goto-char start)
-      (let (c-start)
-        (while (and (< (point) end)
-                    (setq c-start (comment-search-forward end t)))
-          (let ((c-end (if (comment-forward 1)
-                           (min (point) end)
-                         end)))
-            (push (cons c-start c-end) regions)
-            (goto-char c-end)))))
-    (nreverse regions)))
+;; (defun laic--comment-block-begin ()
+;;   (let ((begin (comment-beginning))
+;;         (can-move 0))
+;;     (while (and
+;;             (= can-move 0)
+;;             (laic-is-point-in-comment-p))
+;;       (setq begin (comment-beginning))
+;;       (setq can-move (forward-line -1))
+;;       (back-to-indentation))
+;;     begin))
 
 ;;--------------------------------
 ;; Package setup
