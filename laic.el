@@ -115,6 +115,14 @@ Can be used to define custom math operators, etc..."
   :group 'laic
   :type 'number)
 
+
+(defcustom laic-block-delimiter-pair-regex
+  ;; Matches: $$...$$, $...$, \[...\], and \(...\)
+  "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)"
+  "Regex to capture latex fragments."
+  :group 'laic
+  :type 'string)
+
 ;;------------------------------------------------------------------------------------------------
 ;; Internal implementation
 ;; IMPORTANT: No function moves the point (all use save-excursion when required)
@@ -364,90 +372,13 @@ FGCOLOR and return it."
     ov))
 
 ;;--------------------------------
-;; LaTeX block searches
-;; NOTE: Do not consider whether point or blocks are inside comments
-;;--------------------------------
-
-(defun laic-search-forward-block-begin ()
-  "Search forward closest latex block begin, return point at beginning."
-  (let (best b ld d)
-    (setq best (point-max)) ;init to end of buffer
-    (setq ld laic-block-delimiter-pairs)
-    ;; search for all delimiters
-    (while ld
-      (setq d (pop ld))
-      (save-excursion
-        (setq b (search-forward (nth 0 d) best t))) ;find begin delimiter, if closer than best
-      (when (and b (< b best))
-        (setq best (match-beginning 0)))) ;point at beginning of match
-    ;; return closest delimiter
-    (cond ((and best (< best (point-max)))
-           best)
-          (t
-           nil))))
-
-(defun laic-search-forward-block-end ()
-  "Search forward closest latex block end, return point at end."
-  (let (best e ld d)
-    (setq best (point-max)) ;init to end of buffer
-    (setq ld laic-block-delimiter-pairs)
-    ;; search for all delimiters
-    (while ld
-      (setq d (pop ld))
-      (save-excursion
-        (setq e (search-forward (nth 1 d) best t))) ;find end delimiter, if closer than best
-      (when (and e (< e best))
-        (setq best (match-end 0)))) ;point at end of match
-    ;; return closest delimiter
-    (cond ((and best (< best (point-max)))
-           best)
-          (t
-           nil))))
-
-(defun laic-search-backward-block-begin ()
-  "Search forward closest latex block begin, return point at begin."
-  (let (best e ld d)
-    (setq best (point-min)) ;init to begin of buffer
-    (setq ld laic-block-delimiter-pairs)
-    ;; search for all delimiters
-    (while ld
-      (setq d (pop ld))
-      (save-excursion
-        (setq e (search-backward (nth 0 d) best t))) ;find begin delimiter, if closer than best
-      (when (and e (> e best))
-        (setq best (match-beginning 0)))) ;point at begin of match
-    ;; return closest delimiter
-    (cond ((and best (> best (point-min)))
-           best)
-          (t
-           nil))))
-
-(defun laic-search-backward-block-end ()
-  "Search forward closest latex block end, return point at end."
-  (let (best e ld d)
-    (setq best (point-min)) ;init to begin of buffer
-    (setq ld laic-block-delimiter-pairs)
-    ;; search for all delimiters
-    (while ld
-      (setq d (pop ld))
-      (save-excursion
-        (setq e (search-backward (nth 1 d) best t))) ;find end delimiter, if closer than best
-      (when (and e (> e best))
-        (setq best (match-end 0)))) ;point at end of match
-    ;; return closest delimiter
-    (cond ((and best (> best (point-min)))
-           best)
-          (t
-           nil))))
-
-;;--------------------------------
 ;; Comment helpers
 ;;--------------------------------
 
 ;; NOTE: comment-beginning returns nil if point not inside comment,
 ;; which seems to work, as opposed to (comment-only-p begin end),
 ;; which returns inconsistent results.
-(defun laic-is-point-in-comment-p()
+(defun laic-is-point-in-comment-p ()
   "Return non-nil if point is in comment, nil otherwise."
   (save-excursion ;reverts comment-beginning moving point
     (comment-normalize-vars)
@@ -631,18 +562,17 @@ FGCOLOR and return it."
   (interactive)
   (laic-create-overlays-from-blocks (laic-gather-blocks-in-comments (region-beginning) (region-end))))
 
-(defvar laic-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)")
 
 (defun laic--search-forward-block (start end)
   (save-excursion
     (goto-char start)
-    (when (re-search-forward laic-regex end t)
+    (when (re-search-forward laic-block-delimiter-pair-regex end t)
       (list (match-beginning 0) (match-end 0)))))
 
 (defun laic--search-backward-block (start end)
   (save-excursion
     (goto-char end)
-    (when (re-search-backward laic-regex start t)
+    (when (re-search-backward laic-block-delimiter-pair-regex start t)
       (list (match-beginning 0) (match-end 0)))))
 
 
@@ -652,25 +582,20 @@ FGCOLOR and return it."
 (defun laic-gather-blocks (start end)
   "Return a list of (begin end) buffer positions for LaTeX fragments between START and END."
   ;; (interactive "r")
-  (let ((fragments '())
-        ;; Matches: $$...$$, $...$, \[...\], and \(...\)
-        (latex-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)"))
+  (let ((fragments '()))
     (save-excursion
       (goto-char start)
-      (while (re-search-forward latex-regex end t)
+      (while (re-search-forward laic-block-delimiter-pair-regex end t)
         (push (list (match-beginning 0) (match-end 0)) fragments)))
     (nreverse fragments)))
-
 
 (defun laic-gather-blocks-in-comments (start end)
   "Return a list of (begin end) positions for LaTeX fragments inside comments between START and END."
   ;; (interactive "r")
-  (let ((fragments '())
-        ;; Matches: $$...$$, $...$, \[...\], and \(...\)
-        (latex-regex "\\(\\$\\$\\(?:.\\|\n\\)*?\\$\\$\\|\\$[^$]+\\$\\|\\\\\\[\\(?:.\\|\n\\)*?\\\\\\]\\|\\\\(\\(?:.\\|\n\\)*?\\\\)\\)"))
+  (let ((fragments '()))
     (save-excursion
       (goto-char start)
-      (while (re-search-forward latex-regex end t)
+      (while (re-search-forward laic-block-delimiter-pair-regex end t)
         (let ((beg (match-beginning 0))
               (item-end (match-end 0)))
           ;; (nth 4 (syntax-ppss)) is non-nil if the point is inside a comment
